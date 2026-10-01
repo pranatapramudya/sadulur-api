@@ -1,0 +1,193 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL") 
+}
+
+enum Role {
+  NURSE
+  PATIENT
+}
+
+enum EducationCategory {
+  RING_JANTUNG
+  GULA_DIABETES
+  GINJAL
+  UMUM
+  // Tambahan kategori baru
+  HIPERTENSI
+  HIV
+  STROKE
+  KANKER
+  JANTUNG_KORONER
+  GASTRITIS
+  PPOK
+}
+
+model User {
+  id              String   @id @default(cuid())
+  clerkId         String   @unique 
+  email           String   @unique
+  name            String?
+  role            Role     @default(PATIENT)
+  isActive        Boolean  @default(true) 
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  patientProfile  PatientProfile?
+  createdModules  EducationModule[]
+}
+
+model PatientProfile {
+  id                 String   @id @default(cuid())
+  userId             String   @unique
+  user               User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  qrCodeData         String   @unique 
+  medicalSpecs       String?  @db.Text
+  
+  checkIns           DailyCheckIn[]
+  appointments       Appointment[]
+  medications        Medication[] 
+  
+  dischargeSummary   DischargeSummary?
+  nurseInterventions NurseIntervention[]
+  quizResults        QuizResult[]
+}
+
+// === MODEL DISCHARGE SUMMARY (RM 14 FINAL) ===
+model DischargeSummary {
+  id                 String         @id @default(cuid())
+  patientId          String         @unique
+  patient            PatientProfile @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  
+  // --- IDENTITAS & TINDAKAN (HAL 1) ---
+  ruangan            String?
+  namaDokter         String?
+  namaPerawat        String?
+  diagnosaMedis      String?
+  tindakanDiberikan  String?
+
+  // --- AKTIFITAS ---
+  jenisAktifitas     String?        @db.Text
+  perubahanPosisi    String?        @db.Text
+  eliminasi          String?        @db.Text
+  alatBantu          String?        @db.Text
+
+  // --- PERAWATAN DI RUMAH ---
+  tandaGejala        String?        @db.Text
+  pengobatanDiRumah  String?        @db.Text
+  nomorDarurat       String?        // Tambahan Request
+
+  // --- EDUKASI KESEHATAN ---
+  jadwalKontrolEdukasi String?      @db.Text
+  labLanjutan        String?        @db.Text
+  pemahamanObat      String?        @db.Text
+  obatAlternatif     String?        @db.Text
+  pencegahanKekambuhan String?      @db.Text
+  edukasiLainnya     String?        @db.Text
+
+  // --- DIET & PSIKOLOGIS (HAL 2) ---
+  anjuranMakan       String?        @db.Text
+  batasanMakanan     String?        @db.Text
+  kebutuhanSpiritual String?        @db.Text
+
+  // --- RENCANA PEMULANGAN ---
+  tanggalPulang      DateTime       @default(now()) 
+  pendamping         String?
+  transportasi       String?
+  keadaanUmum        String?        @db.Text
+
+  // --- FIELD LAMA (Dipertahankan Biar Aman) ---
+  jadwalKontrol      DateTime?
+  tempatKontrol      String?
+  instruksiAktivitas String?        @db.Text
+  perawatanRumah     String?        @db.Text
+  aturanDiet         String?        @db.Text
+
+  createdAt          DateTime       @default(now())
+  updatedAt          DateTime       @updatedAt
+  medications        Medication[]   
+}
+
+model Medication {
+  id                 String            @id @default(cuid())
+  patientId          String
+  patient            PatientProfile    @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  
+  dischargeSummaryId String?
+  dischargeSummary   DischargeSummary? @relation(fields: [dischargeSummaryId], references: [id], onDelete: Cascade)
+  
+  name               String
+  rules              String         
+  dosage             String?
+  timeToTake         String?
+  isTaken            Boolean           @default(false)
+  createdAt          DateTime          @default(now())
+  updatedAt          DateTime          @updatedAt
+}
+
+model EducationModule {
+  id          String            @id @default(cuid())
+  title       String
+  content     String            @db.Text
+  mediaUrl    String?
+  type        String            
+  category    EducationCategory @default(UMUM)
+  
+  authorId    String
+  author      User              @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  createdAt   DateTime          @default(now())
+  updatedAt   DateTime          @updatedAt
+}
+
+model Appointment {
+  id          String         @id @default(cuid())
+  patientId   String
+  patient     PatientProfile @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  date        DateTime
+  department  String?
+  doctorName  String?        
+  location    String?        
+  notes       String?
+  status      String         @default("SCHEDULED") 
+  createdAt   DateTime       @default(now())
+}
+
+model DailyCheckIn {
+  id           String         @id @default(cuid())
+  patientId    String
+  patient      PatientProfile @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  date         DateTime       @default(now())
+  painScale    Int   
+  hasFever     Boolean        @default(false)
+  tookMedicine Boolean        @default(false)
+  symptoms     String?        @db.Text
+  isHandled    Boolean        @default(false)
+
+  adminReply       String?    @db.Text
+  emergencyContact String?
+}
+
+model NurseIntervention {
+  id               String         @id @default(cuid())
+  patientProfileId String
+  patientProfile   PatientProfile @relation(fields: [patientProfileId], references: [id], onDelete: Cascade)
+  
+  tindakan         String         @db.Text
+  waktuTindakan    DateTime       @default(now())
+  namaPerawat      String?
+}
+
+model QuizResult {
+  id          String            @id @default(cuid())
+  patientId   String
+  patient     PatientProfile    @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  
+  category    EducationCategory 
+  score       Int               
+  
+  createdAt   DateTime          @default(now())
+}
